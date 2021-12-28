@@ -70,11 +70,16 @@ def insert_ir_message(db_connection, app_id, ir_message):
     print(query_template)
     print(parameters)
 
-
-    cursor = db_connection.cursor()
-    cursor.execute(query_template, tuple(parameters))
-    db_connection.commit()
-    cursor.close()
+    with db_connection.cursor() as cursor:
+        try:
+            cursor.execute(query_template, tuple(parameters))
+            db_connection.commit()
+        except Exception:
+            # An explicit rollback is not strictly necessary here.
+            # Per the docs: "Closing a connection without committing 
+            #                the changes first will cause an implicit 
+            #                rollback to be performed."
+            db_connection.rollback()
 
 
 # Attempts to create a db connection object
