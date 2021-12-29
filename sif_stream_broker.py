@@ -75,7 +75,8 @@ if __name__ == '__main__':
         os_getenv('TS_USER'), 
         os_getenv('TS_PASSWD'), 
         os_getenv('TS_HOST'), 
-        os_getenv('TS_PORT')
+        os_getenv('TS_PORT'),
+        os_getenv('TS_DATABASE')
     )
 
     if not db_connection:

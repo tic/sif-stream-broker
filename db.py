@@ -85,13 +85,13 @@ def insert_ir_message(db_connection, app_id, ir_message):
 # Attempts to create a db connection object
 # and returns the connection or False if
 # unsuccessful.
-def create_connection(ts_user, ts_passwd, ts_host, ts_port):
+def create_connection(ts_user, ts_passwd, ts_host, ts_port, ts_database):
     try:
         # Template format string for the connection URL
-        connection_url = f'postgres://{ts_user}:{ts_passwd}@{ts_host}:{ts_port}/tsdb?sslmode=require'
+        connection_url = f'postgres://{ts_user}:{ts_passwd}@{ts_host}:{ts_port}/{ts_database}?sslmode=require'
 
         # Connect to the db and store the connection object
-        connection = psycopg2.connect(connection_url)
+        connection = psycopg2.connect(connection_url, sslmode='require')
         return connection
     except Exception as err:
         print(err)
