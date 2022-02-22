@@ -21,7 +21,7 @@ def on_message_receive(client, userdata, message):
         parsed = json.loads(message)
         db.insert_ir_message(db_connection, parsed['app_id'], parsed['data'])
     except Exception as err:
-        db.log_error(parsed['app_id'], str(err))
+        db.log_error(db_connection, parsed['app_id'], str(err))
         print(err)
 
 
@@ -32,7 +32,7 @@ def on_message_receive(client, userdata, message):
 def spawn_client():
     # Create a client instance with a unique name
     ctime = datetime.utcnow().timestamp()
-    return mqtt.Client(f'StreamProcessor.{ctime}')    
+    return mqtt.Client(f'StreamProcessor.{ctime}')
 
 
 # Given a client, configure it for receiving messages
@@ -82,9 +82,9 @@ if __name__ == '__main__':
     client = spawn_client()
 
     db_connection = db.create_connection(
-        os_getenv('TS_USER'), 
-        os_getenv('TS_PASSWD'), 
-        os_getenv('TS_HOST'), 
+        os_getenv('TS_USER'),
+        os_getenv('TS_PASSWD'),
+        os_getenv('TS_HOST'),
         os_getenv('TS_PORT'),
         os_getenv('TS_DATABASE')
     )

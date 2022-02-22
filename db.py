@@ -37,7 +37,7 @@ def insert_ir_message(db_connection, app_id, ir_message):
     try:
         assert(payload_length > 0)
     except AssertionError:
-        log_error(app_id, 'assertion failure: received empty payload (no metrics)')
+        log_error(db_connection, app_id, 'assertion failure: received empty payload (no metrics)')
 
     # Extract top-level elements
     app_id = sql.SQL('{}').format(sql.Identifier(app_id)).as_string(db_connection)
@@ -106,7 +106,7 @@ def insert_ir_message(db_connection, app_id, ir_message):
             #                the changes first will cause an implicit 
             #                rollback to be performed."
             db_connection.rollback()
-            log_error(app_id, str(err))
+            log_error(db_connection, app_id, str(err))
 
 
 # Attempts to create a db connection object
