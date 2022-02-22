@@ -16,10 +16,12 @@ load_dotenv()
 
 # Executes when a message arrives in the ingest stream
 def on_message_receive(client, userdata, message):
-    print('message received')
-    message = message.payload.decode("utf-8")
-    parsed = json.loads(message)
-    db.insert_ir_message(db_connection, parsed['app_id'], parsed['data'])
+    try:
+        message = message.payload.decode("utf-8")
+        parsed = json.loads(message)
+        db.insert_ir_message(db_connection, parsed['app_id'], parsed['data'])
+    except Exception as err:
+        print(err)
 
 
 # Create a mqtt client with a unique time-based name.
@@ -96,6 +98,17 @@ if __name__ == '__main__':
     try:
         while True:
             sleep(60)
+
+            # Automatically reconnect to the database if the connection is severed
+            if db_connection.closed:
+                db_connection = db_connection = db.create_connection(
+                os_getenv('TS_USER'), 
+                os_getenv('TS_PASSWD'), 
+                os_getenv('TS_HOST'), 
+                os_getenv('TS_PORT'),
+                os_getenv('TS_DATABASE')
+            )
+
     except KeyboardException:
         pass
 
