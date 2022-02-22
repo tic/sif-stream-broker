@@ -4,6 +4,29 @@ from psycopg2 import sql
 import json
 
 
+# Template for inserting new error rows
+# into the error table.
+error_template = 'INSERT INTO "errorTable" (username, error) VALUES(%s, %s)'
+
+
+# Logs an error to the error table and
+# correlates it with the responsible user.
+def log_error(db_connection, app_id, error_str):
+    try:
+        username = app_id[:app_id.index('_')]
+        with db_connection.cursor() as cursor:
+            try:
+                cursor.execute(error_template, (username, error_str))
+                db_connection.commit()
+            except Exception as err:
+                db_connection.rollback()
+                print('[!!!] error when trying to log error')
+                print(err)
+    except Exception as err:
+        print('[!!!] error logger username logic failure')
+        print(err)
+
+
 # Inserts an Intermediate Representation (IR)
 # formatted message into the database.
 def insert_ir_message(db_connection, app_id, ir_message):
@@ -11,7 +34,10 @@ def insert_ir_message(db_connection, app_id, ir_message):
 
     # There must be payload in the incoming message
     payload_length = len(ir_message['payload'])
-    assert(payload_length > 0)
+    try:
+        assert(payload_length > 0)
+    except AssertionError:
+        log_error(app_id, 'assertion failure: received empty payload (no metrics)')
 
     # Extract top-level elements
     app_id = sql.SQL('{}').format(sql.Identifier(app_id)).as_string(db_connection)
@@ -74,12 +100,13 @@ def insert_ir_message(db_connection, app_id, ir_message):
         try:
             cursor.execute(query_template, tuple(parameters))
             db_connection.commit()
-        except Exception:
+        except Exception as err:
             # An explicit rollback is not strictly necessary here.
             # Per the docs: "Closing a connection without committing 
             #                the changes first will cause an implicit 
             #                rollback to be performed."
             db_connection.rollback()
+            log_error(app_id, str(err))
 
 
 # Attempts to create a db connection object

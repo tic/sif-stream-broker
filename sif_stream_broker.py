@@ -21,6 +21,7 @@ def on_message_receive(client, userdata, message):
         parsed = json.loads(message)
         db.insert_ir_message(db_connection, parsed['app_id'], parsed['data'])
     except Exception as err:
+        db.log_error(parsed['app_id'], str(err))
         print(err)
 
 
