@@ -17,8 +17,16 @@ load_dotenv()
 # Executes when a message arrives in the ingest stream
 def on_message_receive(client, userdata, message):
     try:
+        # In the unexpected event of a parsing or
+        # decoding failure, this ensures the error
+        # will not result in a faulty log and that
+        # is will be reported to a sysadmin's acct.
+        parsed = {
+            'app_id': 'gmf_STREAM PARSE ERROR'
+        }
         message = message.payload.decode("utf-8")
         parsed = json.loads(message)
+        print(parsed)
         db.insert_ir_message(db_connection, parsed['app_id'], parsed['data'])
     except Exception as err:
         db.log_error(db_connection, parsed['app_id'], str(err))
@@ -70,6 +78,7 @@ def cleanup_client(client):
 if __name__ == '__main__':
     # Get channel from argv
     from sys import argv
+    argv.append('0')
     if len(argv) != 2:
         raise Exception("Bad command line arguments. Provide a channel argument and nothing else.")
     channel = argv[1]

@@ -1,29 +1,28 @@
 # Import libraries
 import psycopg2
-from psycopg2 import sql
+from psycopg2 import sql, Error as pg_err
 import json
 
 
 # Template for inserting new error rows
 # into the error table.
-error_template = 'INSERT INTO "errorTable" (username, error) VALUES(%s, %s)'
+error_template = 'INSERT INTO "errorTable" (app_id, error, device) VALUES(%s, %s, %s)'
 
 
 # Logs an error to the error table and
 # correlates it with the responsible user.
-def log_error(db_connection, app_id, error_str):
+def log_error(db_connection, app_id, device, error_str):
     try:
-        username = app_id[:app_id.index('_')]
         with db_connection.cursor() as cursor:
             try:
-                cursor.execute(error_template, (username, error_str))
+                cursor.execute(error_template, (app_id, error_str, device))
                 db_connection.commit()
             except Exception as err:
                 db_connection.rollback()
                 print('[!!!] error when trying to log error')
                 print(err)
     except Exception as err:
-        print('[!!!] error logger username logic failure')
+        print('[!!!] error logger app_id logic failure')
         print(err)
 
 
@@ -37,9 +36,16 @@ def insert_ir_message(db_connection, app_id, ir_message):
     try:
         assert(payload_length > 0)
     except AssertionError:
-        log_error(db_connection, app_id, 'assertion failure: received empty payload (no metrics)')
+        print('[ ! ] empty payload error')
+        try:
+            device = ir_message['device']
+        except KeyError:
+            device = ''
+        log_error(db_connection, app_id, device, 'assertion failure: received empty payload (no metrics)')
+        return
 
     # Extract top-level elements
+    original_app_id = app_id
     app_id = sql.SQL('{}').format(sql.Identifier(app_id)).as_string(db_connection)
     unix_timestamp = ir_message['time']
 
@@ -100,13 +106,38 @@ def insert_ir_message(db_connection, app_id, ir_message):
         try:
             cursor.execute(query_template, tuple(parameters))
             db_connection.commit()
-        except Exception as err:
+        except pg_err as err:
             # An explicit rollback is not strictly necessary here.
             # Per the docs: "Closing a connection without committing 
             #                the changes first will cause an implicit 
             #                rollback to be performed."
             db_connection.rollback()
-            log_error(db_connection, app_id, str(err))
+            try:
+                device = ir_message['device']
+            except KeyError:
+                device = ''
+
+            if str(err) == 'can\'t adapt type \'dict\'':
+                # An object was provided instead of a primitive type
+                log_error(db_connection, original_app_id, device, 'unexpected object (expected primitive)')
+            elif err.pgcode == '42P01':
+                # App not found
+                log_error(db_connection, original_app_id, device, 'invalid app')
+            elif err.pgcode == '42703':
+                # Invalid metadata key provided
+                log_error(db_connection, original_app_id, device, 'invalid metadata')
+            elif err.pgcode == '22P02':
+                # Provided a string for a column that should be a double precision
+                log_error(db_connection, original_app_id, device, 'unexpected string (expected number)')
+            elif err.pgcode == '42804':
+                # Provided a boolean for a column that should be a double precision
+                log_error(db_connection, original_app_id, device, 'unexpected boolean (expected number)')
+            else:
+                print('[ ! ] unhandled sql error,' err)
+                print(err.pgcode)
+        except Exception as err:
+            print('[!!!] unexpected non-sql error on insertion', err)
+            db_connection.rollback()
 
 
 # Attempts to create a db connection object
