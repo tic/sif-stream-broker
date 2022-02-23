@@ -78,7 +78,6 @@ def cleanup_client(client):
 if __name__ == '__main__':
     # Get channel from argv
     from sys import argv
-    argv.append('0')
     if len(argv) != 2:
         raise Exception("Bad command line arguments. Provide a channel argument and nothing else.")
     channel = argv[1]
