@@ -133,7 +133,7 @@ def insert_ir_message(db_connection, app_id, ir_message):
                 # Provided a boolean for a column that should be a double precision
                 log_error(db_connection, original_app_id, device, 'unexpected boolean (expected number)')
             else:
-                print('[ ! ] unhandled sql error,' err)
+                print('[ ! ] unhandled sql error,', err)
                 print(err.pgcode)
         except Exception as err:
             print('[!!!] unexpected non-sql error on insertion', err)
