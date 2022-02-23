@@ -118,7 +118,7 @@ if __name__ == '__main__':
                 os_getenv('TS_DATABASE')
             )
 
-    except KeyboardException:
+    except KeyboardInterrupt:
         pass
 
     # Clean up the client before shutting down
