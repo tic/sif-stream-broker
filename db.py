@@ -6,7 +6,7 @@ import json
 
 # Template for inserting new error rows
 # into the error table.
-error_template = 'INSERT INTO "errorTable" (app_id, error, device) VALUES(%s, %s, %s)'
+error_template = 'INSERT INTO "errorTable" (app_id, error, device) VALUES(%s, %s, %s) ON CONFLICT ON CONSTRAINT unique_error_src DO UPDATE SET timestamp=NOW()'
 
 
 # Logs an error to the error table and
