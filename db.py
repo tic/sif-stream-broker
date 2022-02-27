@@ -1,6 +1,6 @@
 # Import libraries
 import psycopg2
-from psycopg2 import sql, Error as pg_err
+from psycopg2 import sql, Error as pg_err, OperationalError as pg_op_err, InterfaceError as pg_int_err
 import json
 
 
@@ -22,7 +22,7 @@ def log_error(db_connection, app_id, device, error_str):
                 print('[!!!] error when trying to log error')
                 print(err)
     except Exception as err:
-        print('[!!!] error logger app_id logic failure')
+        print('[ !!! ] error logger app_id logic failure')
         print(err)
 
 
@@ -36,7 +36,7 @@ def insert_ir_message(db_connection, app_id, ir_message):
     try:
         assert(payload_length > 0)
     except AssertionError:
-        print('[ ! ] empty payload error')
+        print('[  !  ] empty payload error')
         try:
             device = ir_message['device']
         except KeyError:
@@ -99,13 +99,17 @@ def insert_ir_message(db_connection, app_id, ir_message):
         + value_template \
         + (', ' + value_template)*(payload_length - 1) \
         + ';'
-    print(query_template)
-    print(parameters)
+    #print(query_template)
+    #print(parameters)
 
     with db_connection.cursor() as cursor:
         try:
             cursor.execute(query_template, tuple(parameters))
             db_connection.commit()
+        except pg_int_err as err:
+            print(f'[  !  ] pgsql InterfaceError!\n{str(err)}')
+        except pg_op_err as err:
+            print(f'[  !  ] pgsql OperationalError!\n{str(err)}')
         except pg_err as err:
             # An explicit rollback is not strictly necessary here.
             # Per the docs: "Closing a connection without committing 
@@ -133,10 +137,10 @@ def insert_ir_message(db_connection, app_id, ir_message):
                 # Provided a boolean for a column that should be a double precision
                 log_error(db_connection, original_app_id, device, 'unexpected boolean (expected number)')
             else:
-                print('[ ! ] unhandled sql error,', err)
+                print('[ !!! ] unhandled sql error,', err)
                 print(err.pgcode)
         except Exception as err:
-            print('[!!!] unexpected non-sql error on insertion', err)
+            print('[!!!!!] unexpected non-sql error on insertion', err)
             db_connection.rollback()
 
 
@@ -152,5 +156,5 @@ def create_connection(ts_user, ts_passwd, ts_host, ts_port, ts_database):
         connection = psycopg2.connect(connection_url, sslmode='require')
         return connection
     except Exception as err:
-        print(err)
+        print('[!!!!!] failed to establish database connection', err)
         return False

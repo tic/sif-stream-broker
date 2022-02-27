@@ -3,6 +3,7 @@ import paho.mqtt.client as mqtt
 from datetime import datetime
 import json
 
+
 # Import database connector and create a blank
 # connection object
 import db
@@ -25,12 +26,19 @@ def on_message_receive(client, userdata, message):
             'app_id': 'gmf_STREAM PARSE ERROR'
         }
         message = message.payload.decode("utf-8")
+        #print(message)
         parsed = json.loads(message)
-        print(parsed)
         db.insert_ir_message(db_connection, parsed['app_id'], parsed['data'])
-    except Exception as err:
-        db.log_error(db_connection, parsed['app_id'], str(err))
-        print(err)
+    except Exception as outer_err:
+        try:
+            try:
+                device = parsed['device']
+            except KeyError:
+                device = ''
+            #print('[     ] handled outer handler error', outer_err)
+            db.log_error(db_connection, parsed['app_id'], device, str(outer_err))
+        except Exception as inner_err:
+            print('[ !!! ] unhandled exception in message handler error logger', inner_err)
 
 
 # Create a mqtt client with a unique time-based name.
@@ -81,7 +89,7 @@ if __name__ == '__main__':
     if len(argv) != 2:
         raise Exception("Bad command line arguments. Provide a channel argument and nothing else.")
     channel = argv[1]
-    print('using channel', channel)
+    print(f'[  !  ] using channel {channel}')
 
     # Import libraries
     from time import sleep
@@ -98,6 +106,7 @@ if __name__ == '__main__':
     )
 
     if not db_connection:
+        print('[ !!! ] failed to establish initial database connection')
         raise 'Failed to connect to database'
 
     # Prepare the client to receive messages
@@ -110,7 +119,8 @@ if __name__ == '__main__':
 
             # Automatically reconnect to the database if the connection is severed
             if db_connection.closed:
-                db_connection = db_connection = db.create_connection(
+                print('[ !!  ] recreating database connection')
+                db_connection = db.create_connection(
                 os_getenv('TS_USER'), 
                 os_getenv('TS_PASSWD'), 
                 os_getenv('TS_HOST'), 
