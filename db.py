@@ -11,14 +11,14 @@ error_template = 'INSERT INTO "errorTable" (app_id, error, device) VALUES(%s, %s
 
 # Logs an error to the error table and
 # correlates it with the responsible user.
-def log_error(db_connection, app_id, device, error_str):
+def log_error(errlog_connection, app_id, device, error_str):
     try:
-        with db_connection.cursor() as cursor:
+        with errlog_connection.cursor() as cursor:
             try:
                 cursor.execute(error_template, (app_id, error_str, device))
-                db_connection.commit()
+                errlog_connection.commit()
             except Exception as err:
-                db_connection.rollback()
+                errlog_connection.rollback()
                 print('[!!!] error when trying to log error')
                 print(err)
     except Exception as err:
@@ -28,7 +28,7 @@ def log_error(db_connection, app_id, device, error_str):
 
 # Inserts an Intermediate Representation (IR)
 # formatted message into the database.
-def insert_ir_message(db_connection, app_id, ir_message):
+def insert_ir_message(db_connection, errlog_connection, app_id, ir_message):
     # Incoming message is a parsed IR-formed json
 
     # There must be payload in the incoming message
@@ -41,7 +41,7 @@ def insert_ir_message(db_connection, app_id, ir_message):
             device = ir_message['device']
         except KeyError:
             device = ''
-        log_error(db_connection, app_id, device, 'assertion failure: received empty payload (no metrics)')
+        log_error(errlog_connection, app_id, device, 'assertion failure: received empty payload (no metrics)')
         return
 
     # Extract top-level elements
@@ -123,19 +123,19 @@ def insert_ir_message(db_connection, app_id, ir_message):
 
             if str(err) == 'can\'t adapt type \'dict\'':
                 # An object was provided instead of a primitive type
-                log_error(db_connection, original_app_id, device, 'unexpected object (expected primitive)')
+                log_error(errlog_connection, original_app_id, device, 'unexpected object (expected primitive)')
             elif err.pgcode == '42P01':
                 # App not found
-                log_error(db_connection, original_app_id, device, 'invalid app')
+                log_error(errlog_connection, original_app_id, device, 'invalid app')
             elif err.pgcode == '42703':
                 # Invalid metadata key provided
-                log_error(db_connection, original_app_id, device, 'invalid metadata')
+                log_error(errlog_connection, original_app_id, device, 'invalid metadata')
             elif err.pgcode == '22P02':
                 # Provided a string for a column that should be a double precision
-                log_error(db_connection, original_app_id, device, 'unexpected string (expected number)')
+                log_error(errlog_connection, original_app_id, device, 'unexpected string (expected number)')
             elif err.pgcode == '42804':
                 # Provided a boolean for a column that should be a double precision
-                log_error(db_connection, original_app_id, device, 'unexpected boolean (expected number)')
+                log_error(errlog_connection, original_app_id, device, 'unexpected boolean (expected number)')
             else:
                 print('[ !!! ] unhandled sql error,', err)
                 print(err.pgcode)

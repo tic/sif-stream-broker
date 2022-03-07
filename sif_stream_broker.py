@@ -8,6 +8,7 @@ import json
 # connection object
 import db
 db_connection = None
+errlog_connection = None
 
 # Load env variables and the function to read them
 from os import getenv as os_getenv
@@ -28,15 +29,14 @@ def on_message_receive(client, userdata, message):
         message = message.payload.decode("utf-8")
         #print(message)
         parsed = json.loads(message)
-        db.insert_ir_message(db_connection, parsed['app_id'], parsed['data'])
+        db.insert_ir_message(db_connection, errlog_connection, parsed['app_id'], parsed['data'])
     except Exception as outer_err:
         try:
             try:
                 device = parsed['device']
             except KeyError:
                 device = ''
-            #print('[     ] handled outer handler error', outer_err)
-            db.log_error(db_connection, parsed['app_id'], device, str(outer_err))
+            db.log_error(errlog_connection, parsed['app_id'], device, str(outer_err))
         except Exception as inner_err:
             print('[ !!! ] unhandled exception in message handler error logger', inner_err)
 
@@ -105,9 +105,17 @@ if __name__ == '__main__':
         os_getenv('TS_DATABASE')
     )
 
-    if not db_connection:
+    errlog_connection = db.create_connection(
+        os_getenv('TS_USER'), 
+        os_getenv('TS_PASSWD'), 
+        os_getenv('TS_HOST'), 
+        os_getenv('TS_PORT'),
+        os_getenv('TS_DATABASE_ERRORS')
+    )
+
+    if not db_connection or not errlog_connection:
         print('[ !!! ] failed to establish initial database connection')
-        raise 'Failed to connect to database'
+        raise Exception('Failed to connect to database')
 
     # Prepare the client to receive messages
     setup_client(client, channel)
@@ -121,12 +129,22 @@ if __name__ == '__main__':
             if db_connection.closed:
                 print('[ !!  ] recreating database connection')
                 db_connection = db.create_connection(
-                os_getenv('TS_USER'), 
-                os_getenv('TS_PASSWD'), 
-                os_getenv('TS_HOST'), 
-                os_getenv('TS_PORT'),
-                os_getenv('TS_DATABASE')
-            )
+                    os_getenv('TS_USER'), 
+                    os_getenv('TS_PASSWD'), 
+                    os_getenv('TS_HOST'), 
+                    os_getenv('TS_PORT'),
+                    os_getenv('TS_DATABASE')
+                )
+
+            if errlog_connection.closed:
+                print('[ !!  ] recreating database connection')
+                errlog_connection = db.create_connection(
+                    os_getenv('TS_USER'), 
+                    os_getenv('TS_PASSWD'), 
+                    os_getenv('TS_HOST'), 
+                    os_getenv('TS_PORT'),
+                    os_getenv('TS_DATABASE_ERRORS')
+                )
 
     except KeyboardInterrupt:
         pass
