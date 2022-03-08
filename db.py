@@ -49,39 +49,72 @@ def insert_ir_message(db_connection, errlog_connection, app_id, ir_message):
     app_id = sql.SQL('{}').format(sql.Identifier(app_id)).as_string(db_connection)
     unix_timestamp = ir_message['time']
 
+    # Add metadata column names to the insert statement
+    metadata_values = [value for value in ir_message['metadata'].values()]
+    metadata_keys = list(ir_message['metadata'].keys())
+    
+    # If any string data is provided, it needs to be
+    # appended to the metadata key list in order to
+    # be a part of the subsequent query templates.
+    str_data_index_lookup = {}
+    for metric, value in ir_message['payload'].items():
+        # NOTE: This is the same loop that happens in a
+        #       subsequent control block. This is because
+        #       the presence of a metadata key at any
+        #       position will affect the default query
+        #       structure for all other keys.
+        if type(value) == str:
+            try:
+                key_index = metadata_keys.index(metric)
+                str_data_index_lookup[metric] = key_index
+            except ValueError:
+                metadata_keys.append(metric)
+                metadata_values.append(None)
+                str_data_index_lookup[metric] = len(metadata_keys) - 1
+    
     # Aggregate columns and values
     # md_specifiers = ', %s'*len(ir_message['metadata'])
     # md_specifiers = (', ' if len(ir_message['metadata']) > 0 else '') + ', '.join([f'{{{md_field}}}' for md_field in ir_message['metadata']])
-    md_specifiers = ', {}'*len(ir_message['metadata'])
+    md_specifiers = ', {}'*len(metadata_keys)
 
-    columns_as_identifiers = [sql.Identifier(column) for column in ir_message['metadata'].keys()]
+    columns_as_identifiers = [sql.Identifier(column) for column in metadata_keys]
     column_template = sql.SQL('(time, metric, value' + md_specifiers + ')') \
                          .format(*columns_as_identifiers) \
                          .as_string(db_connection)
 
-    md_value_specifiers = ', %s'*len(ir_message['metadata'])
+    md_value_specifiers = ', %s'*len(metadata_keys)
     # Create value templates. Each row has at least time,
     # metric, and value columns. Additionally, there may
     # be a variable number of metadata columns.
     value_template = '(to_timestamp(%s), %s, %s' + md_value_specifiers + ')'
-
     
     # Stores parameters to fill each %s in the eventual insertion string
     parameters = []
 
-
-    # Add metadata column names to the insert statement
-    metadata_values = [value for value in ir_message['metadata'].values()]
-
-
-    # Add payload data to the insert statement
+    # Add payload data to the insert statement.
     for metric, value in ir_message['payload'].items():
+        if type(value) == str:
+            # This is a string datapoint. We need to
+            # supply a dummy value.
+            ins_value = 0
+
+            # We also have to replace the corresponding
+            # "metadata" column's placeholder with the
+            # provided data.
+            ins_metadata_values = metadata_values.copy()
+            ins_metadata_values[str_data_index_lookup[metric]] = value
+        else:
+            ins_value = value
+            ins_metadata_values = metadata_values
+        
         point_values = [
             unix_timestamp,
             metric,
-            value
+            ins_value
         ]
-        point_values.extend(metadata_values)
+
+        # Add parameters to the query template.
+        point_values.extend(ins_metadata_values)
         parameters.extend(point_values)
 
 
@@ -99,8 +132,8 @@ def insert_ir_message(db_connection, errlog_connection, app_id, ir_message):
         + value_template \
         + (', ' + value_template)*(payload_length - 1) \
         + ';'
-    #print(query_template)
-    #print(parameters)
+    # print(query_template)
+    # print(parameters)
 
     with db_connection.cursor() as cursor:
         try:
